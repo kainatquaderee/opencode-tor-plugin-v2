@@ -168,7 +168,9 @@ curl -s -x http://127.0.0.1:8118 https://icanhazip.com
 ```
 
 Both should print an IP different from your direct (`curl -s https://icanhazip.com`)
-address. In chat, `@tor verify` checks the `fetch` layer.
+address. In chat, `@tor verify` checks the `fetch` layer: it samples the direct
+IP with proxy environment variables bypassed (`node:https`) and compares it with
+the Tor-routed `fetch`, so the two samples are genuinely independent.
 
 ## Troubleshooting
 

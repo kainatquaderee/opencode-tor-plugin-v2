@@ -27,6 +27,7 @@
 import { Plugin } from "@opencode/plugin"
 import { fetch as socksFetch } from "netbun"
 import { connect } from "node:net"
+import { get as httpsGet } from "node:https"
 import { appendFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
@@ -205,6 +206,31 @@ async function probeIp(fetchImpl: FetchLike): Promise<string> {
   }
 }
 
+/**
+ * Sample the real egress IP without any proxy.
+ *
+ * `globalThis.fetch` (even the pre-patch one) still honours the process-wide
+ * HTTP_PROXY/HTTPS_PROXY/ALL_PROXY env vars this plugin sets for provider
+ * traffic, so it cannot serve as a "direct" baseline. node:https ignores those
+ * env vars, giving a true direct connection to compare against.
+ */
+function probeDirectIp(): Promise<string> {
+  return new Promise((resolve) => {
+    const req = httpsGet(
+      IP_ECHO_URL,
+      { headers: { "User-Agent": "opencode-tor-plugin-v2" }, timeout: 15000 },
+      (res) => {
+        let body = ""
+        res.setEncoding("utf8")
+        res.on("data", (chunk) => (body += chunk))
+        res.on("end", () => resolve(body.trim() || "(empty response)"))
+        res.on("error", (err) => resolve(`(error: ${err instanceof Error ? err.message : String(err)})`))
+      },
+    )
+    req.on("error", (err) => resolve(`(error: ${err instanceof Error ? err.message : String(err)})`))
+  })
+}
+
 export default Plugin.define({
   id: "opencode-tor-plugin-v2",
   async setup(ctx) {
@@ -291,17 +317,14 @@ export default Plugin.define({
           return
         }
         case "verify": {
-          const [direct, proxied] = await Promise.all([
-            probeIp(router.originalFetch),
-            probeIp(router.fetch),
-          ])
+          const [direct, proxied] = await Promise.all([probeDirectIp(), probeIp(router.fetch)])
           const ok = direct !== proxied && !proxied.startsWith("(error")
           reply(
             sessionID,
             `[tor] direct IP:  ${direct}\n` +
               `[tor] proxied IP: ${proxied}\n` +
               `[tor] verify ${ok ? "OK — fetch is routed through Tor" : "FAILED — fetch is NOT confirmed to route through Tor"}\n` +
-              `[tor] note: verify covers the fetch path; provider traffic uses the HTTP proxy env (403 from some providers over Tor is normal).`,
+              `[tor] note: direct IP is sampled with proxy env bypassed (node:https); provider traffic uses the HTTP proxy env (403 from some providers over Tor is normal).`,
           )
           return
         }
