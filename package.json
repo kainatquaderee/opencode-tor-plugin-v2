@@ -1,0 +1,49 @@
+{
+  "name": "opencode-tor-plugin-v2",
+  "version": "2.0.0",
+  "description": "OpenCode V2 plugin that routes outbound HTTP(S) traffic through Tor (SOCKS5 for fetch, HTTP proxy env for provider traffic).",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "tor",
+    "socks5",
+    "proxy",
+    "privacy",
+    "anonymity",
+    "v2"
+  ],
+  "author": "opencode-tor-plugin-v2 contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kainatquaderee/opencode-tor-plugin-v2.git"
+  },
+  "homepage": "https://github.com/kainatquaderee/opencode-tor-plugin-v2#readme",
+  "bugs": {
+    "url": "https://github.com/kainatquaderee/opencode-tor-plugin-v2/issues"
+  },
+  "engines": {
+    "opencode": ">=2.0.0"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.0.0"
+  },
+  "dependencies": {
+    "netbun": "^0.4.1"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "latest",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.0"
+  }
+}
