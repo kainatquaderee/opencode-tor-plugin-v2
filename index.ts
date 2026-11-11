@@ -250,18 +250,20 @@ export default Plugin.define({
       await ctx.storage.set("settings", settings)
     }
 
-    // Deliver command output to the user's transcript. `synthetic` is the
-    // documented way to post a visible message without triggering a model turn.
-    // It is awaited (not fire-and-forget) so a rejection is not silently lost,
-    // and retried in "steer" mode if "queue" is refused (e.g. busy session).
+    // Deliver command output to the user's transcript. `resume: false` admits the
+    // message without scheduling an agent-loop turn (otherwise the assistant
+    // answers every command). A plain user message is used because `synthetic`
+    // messages only render a one-line `description` notice in the TUI, hiding
+    // the actual command output. A synthetic notice is kept as a fallback.
     const reply = async (sessionID: string, text: string) => {
       console.log(text)
       try {
-        await ctx.session.synthetic({ sessionID, text, description: "Tor", delivery: "queue" })
+        await ctx.session.prompt({ sessionID, text, resume: false })
       } catch (err) {
-        console.warn("[tor] queue delivery failed, retrying steer", err)
+        console.warn("[tor] prompt delivery failed, falling back to a synthetic notice", err)
         try {
-          await ctx.session.synthetic({ sessionID, text, description: "Tor" })
+          const line = text.split("\n")[0]
+          await ctx.session.synthetic({ sessionID, text, description: line, resume: false })
         } catch (err2) {
           console.error("[tor] unable to deliver output to the session", err2)
         }
