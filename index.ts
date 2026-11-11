@@ -250,11 +250,22 @@ export default Plugin.define({
       await ctx.storage.set("settings", settings)
     }
 
-    const reply = (sessionID: string, text: string) => {
+    // Deliver command output to the user's transcript. `synthetic` is the
+    // documented way to post a visible message without triggering a model turn.
+    // It is awaited (not fire-and-forget) so a rejection is not silently lost,
+    // and retried in "steer" mode if "queue" is refused (e.g. busy session).
+    const reply = async (sessionID: string, text: string) => {
       console.log(text)
       try {
-        void ctx.session.synthetic({ sessionID, text })
-      } catch {}
+        await ctx.session.synthetic({ sessionID, text, description: "Tor", delivery: "queue" })
+      } catch (err) {
+        console.warn("[tor] queue delivery failed, retrying steer", err)
+        try {
+          await ctx.session.synthetic({ sessionID, text, description: "Tor" })
+        } catch (err2) {
+          console.error("[tor] unable to deliver output to the session", err2)
+        }
+      }
     }
 
     const run = async (sessionID: string, sub: string | undefined, arg: string | undefined) => {
@@ -265,7 +276,7 @@ export default Plugin.define({
             isProxyReachable(settings.proxy),
             isProxyReachable(settings.httpProxy),
           ])
-          reply(
+          await reply(
             sessionID,
             `[tor] ${settings.enabled ? "ENABLED" : "DISABLED"}\n` +
               `[tor] provider HTTP proxy: ${settings.httpProxy} (${httpOk ? "reachable" : "UNREACHABLE"})\n` +
@@ -278,19 +289,19 @@ export default Plugin.define({
           router.setProxy(settings.proxy)
           applyProxyEnv(settings)
           await persist()
-          reply(sessionID, `[tor] ENABLED — provider traffic via ${settings.httpProxy}, fetch via ${settings.proxy}`)
+          await reply(sessionID, `[tor] ENABLED — provider traffic via ${settings.httpProxy}, fetch via ${settings.proxy}`)
           return
         }
         case "off": {
           settings = { ...settings, enabled: false }
           applyProxyEnv(settings)
           await persist()
-          reply(sessionID, "[tor] DISABLED — routing directly")
+          await reply(sessionID, "[tor] DISABLED — routing directly")
           return
         }
         case "proxy": {
           if (!arg) {
-            reply(sessionID, `[tor] provider=${settings.httpProxy} fetch=${settings.proxy}`)
+            await reply(sessionID, `[tor] provider=${settings.httpProxy} fetch=${settings.proxy}`)
             return
           }
           if (arg.startsWith("http://") || arg.startsWith("https://")) {
@@ -301,7 +312,7 @@ export default Plugin.define({
           }
           applyProxyEnv(settings)
           await persist()
-          reply(sessionID, `[tor] proxy set — provider=${settings.httpProxy} fetch=${settings.proxy}`)
+          await reply(sessionID, `[tor] proxy set — provider=${settings.httpProxy} fetch=${settings.proxy}`)
           return
         }
         case "test": {
@@ -309,7 +320,7 @@ export default Plugin.define({
             isProxyReachable(settings.proxy, 5000),
             isProxyReachable(settings.httpProxy, 5000),
           ])
-          reply(
+          await reply(
             sessionID,
             `[tor] provider proxy ${settings.httpProxy} ${httpOk ? "reachable" : "UNREACHABLE"}\n` +
               `[tor] fetch proxy ${settings.proxy} ${socksOk ? "reachable" : "UNREACHABLE"}`,
@@ -319,7 +330,7 @@ export default Plugin.define({
         case "verify": {
           const [direct, proxied] = await Promise.all([probeDirectIp(), probeIp(router.fetch)])
           const ok = direct !== proxied && !proxied.startsWith("(error")
-          reply(
+          await reply(
             sessionID,
             `[tor] direct IP:  ${direct}\n` +
               `[tor] proxied IP: ${proxied}\n` +
@@ -329,7 +340,7 @@ export default Plugin.define({
           return
         }
         default:
-          reply(sessionID, "[tor] usage: @tor [on|off|status|test|verify|proxy <url>]")
+          await reply(sessionID, "[tor] usage: @tor [on|off|status|test|verify|proxy <url>]")
       }
     }
 

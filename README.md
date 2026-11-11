@@ -123,6 +123,11 @@ In the TUI, use the command form:
 
 State is persisted between sessions via OpenCode's plugin storage.
 
+Every command replies in the session transcript as a synthetic message, so the
+output is visible in the TUI. Delivery is awaited and retried; if the server
+rejects both attempts, the reason is written to the server log instead of being
+silently dropped.
+
 Notes:
 
 - `/tor …` runs the command only; it does not call the model. With the `@tor …`
