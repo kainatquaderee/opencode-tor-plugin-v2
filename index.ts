@@ -35,6 +35,7 @@ import { tmpdir } from "node:os"
 const DEFAULT_PROXY = "socks5h://127.0.0.1:9050"
 const DEFAULT_HTTP_PROXY = "http://127.0.0.1:8118"
 const IP_ECHO_URL = "https://icanhazip.com"
+const TOR_CHECK_URL = "https://check.torproject.org/api/ip"
 const NO_PROXY_VALUE = "localhost,127.0.0.1,::1"
 
 // Diagnostics: set OPENCODE_TOR_TRACE=1 to log every fetch the plugin sees.
@@ -211,6 +212,22 @@ async function probeIp(fetchImpl: FetchLike): Promise<string> {
 }
 
 /**
+ * Ask the Tor Project itself whether the request left via a Tor exit. This is
+ * authoritative: an IP-difference check can be fooled by an address-family
+ * change (e.g. direct IPv6 vs a leaked direct IPv4) and report a false OK.
+ */
+async function probeTorStatus(fetchImpl: FetchLike): Promise<{ isTor: boolean; ip: string } | null> {
+  try {
+    const res = await fetchImpl(TOR_CHECK_URL, { headers: { "User-Agent": "opencode-tor-plugin-v2" } })
+    const body = (await res.text()).trim()
+    const parsed = JSON.parse(body) as { IsTor?: boolean; IP?: string }
+    return { isTor: parsed.IsTor === true, ip: parsed.IP ?? "(unknown)" }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Sample the real egress IP without any proxy.
  *
  * `globalThis.fetch` (even the pre-patch one) still honours the process-wide
@@ -344,13 +361,24 @@ export default Plugin.define({
             )
             return
           }
-          const [direct, proxied] = await Promise.all([probeDirectIp(), probeIp(router.fetch)])
-          const ok = direct !== proxied && !proxied.startsWith("(error")
+          const [direct, tor] = await Promise.all([probeDirectIp(), probeTorStatus(router.fetch)])
+          if (!tor) {
+            await reply(
+              sessionID,
+              "[tor] verify FAILED — could not reach the Tor check service through the proxy\n" +
+                "[tor] the proxy may be down; run /tor test",
+            )
+            return
+          }
+          const ok = tor.isTor
           await reply(
             sessionID,
             `[tor] direct IP:  ${direct}\n` +
-              `[tor] proxied IP: ${proxied}\n` +
-              `[tor] verify ${ok ? "OK — fetch is routed through Tor" : "FAILED — fetch is NOT confirmed to route through Tor"}\n` +
+              `[tor] proxied IP: ${tor.ip}\n` +
+              `[tor] Tor check: ${
+                ok ? "IsTor = true (fetch really exited via a Tor relay)" : "IsTor = false (NOT routed through Tor)"
+              }\n` +
+              `[tor] verify ${ok ? "OK — confirmed routed through Tor" : "FAILED — fetch is NOT routed through Tor"}\n` +
               `[tor] note: direct IP is sampled with proxy env bypassed (node:https); provider traffic uses the HTTP proxy env (403 from some providers over Tor is normal).`,
           )
           return
