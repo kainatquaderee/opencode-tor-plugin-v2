@@ -1,6 +1,6 @@
 {
   "name": "opencode-tor-plugin-v2",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "OpenCode V2 plugin that routes outbound HTTP(S) traffic through Tor (SOCKS5 for fetch, HTTP proxy env for provider traffic).",
   "type": "module",
   "main": "./index.ts",

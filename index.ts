@@ -314,9 +314,34 @@ export default Plugin.define({
       const text = (event.prompt?.text ?? "").trim()
       trace(`prompt text=${JSON.stringify(text)}`)
       const m = text.match(/^@tor(?:\s+(\S+))?(?:\s+(\S+))?/)
-      if (!m) return
+      if (!m) {
+        // Diagnostic: the terminal UI parses `@` as a mention and may rewrite
+        // the text before this hook runs. Log only prompts that look like ours.
+        if (/@tor\b/i.test(text)) console.log(`[tor] prompt not matched: ${JSON.stringify(text)}`)
+        return
+      }
       await run(event.sessionID, m[1], m[2])
     })
+
+    // TUI-safe path. The terminal UI parses `@tor` as an @-mention, so the
+    // literal text may never reach the prompt hook above. A registered command
+    // is not subject to mention parsing: use `/tor <subcommand>`.
+    try {
+      await ctx.command.transform((editor) => {
+        editor.add({
+          name: "tor",
+          description: "Control Tor routing: on | off | status | test | verify | proxy <url>",
+          execute: async ({ sessionID, prompt }) => {
+            const raw = (prompt?.text ?? "").trim().replace(/^\/?tor\b/i, "").trim()
+            const parts = raw.split(/\s+/).filter(Boolean)
+            trace(`command text=${JSON.stringify(raw)}`)
+            await run(sessionID, parts[0], parts[1])
+          },
+        })
+      })
+    } catch (err) {
+      console.warn("[tor] failed to register /tor command", err)
+    }
 
     return () => {
       router.restore()

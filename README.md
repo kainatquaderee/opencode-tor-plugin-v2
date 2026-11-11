@@ -97,7 +97,21 @@ watched, so saving triggers a reload — no restart required.
 
 ## Usage
 
-Type these as chat messages:
+In the TUI, use the command form:
+
+```text
+/tor status
+/tor test
+/tor verify
+/tor on
+/tor off
+/tor proxy socks5h://127.0.0.1:9050
+```
+
+> The terminal UI reserves `@` for @-mentions, so `@tor …` can be rewritten
+> before the plugin sees it. `/tor …` is parsed as a command and is reliable.
+> The `@tor …` form still works in `opencode run` and clients that pass the
+> literal text.
 
 | Command | Description |
 | --- | --- |
@@ -111,8 +125,9 @@ State is persisted between sessions via OpenCode's plugin storage.
 
 Notes:
 
-- The `@tor …` message is still delivered to the model (the V2 `prompt` hook
-  cannot drop a prompt); the command reply is an additional synthetic message.
+- `/tor …` runs the command only; it does not call the model. With the `@tor …`
+  form the message is also delivered to the model (the V2 `prompt` hook cannot
+  drop a prompt), and the reply is an additional synthetic message.
 - `@tor verify` measures the `fetch` layer. The provider layer is verified
   separately — see [Verifying](#verifying).
 
