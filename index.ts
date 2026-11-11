@@ -332,7 +332,10 @@ export default Plugin.define({
           name: "tor",
           description: "Control Tor routing: on | off | status | test | verify | proxy <url>",
           execute: async ({ sessionID, prompt }) => {
-            const raw = (prompt?.text ?? "").trim().replace(/^\/?tor\b/i, "").trim()
+            const raw = (prompt?.text ?? "").trim()
+              .replace(/^\/tor\b/i, "")
+              .replace(/^@tor\b/i, "")
+              .trim()
             const parts = raw.split(/\s+/).filter(Boolean)
             trace(`command text=${JSON.stringify(raw)}`)
             await run(sessionID, parts[0], parts[1])
