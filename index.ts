@@ -137,6 +137,7 @@ interface TorRouter {
   fetch: FetchLike
   originalFetch: FetchLike
   setProxy: (proxy: string) => void
+  setEnabled: (on: boolean) => void
   restore: () => void
 }
 
@@ -173,6 +174,9 @@ function createTorRouter(initial: Settings): TorRouter {
         warned = false
       }
       proxy = next
+    },
+    setEnabled(on: boolean) {
+      enabled = on
     },
     restore() {
       globalThis.fetch = originalFetch
@@ -289,6 +293,7 @@ export default Plugin.define({
         case "on": {
           settings = { ...settings, enabled: true }
           router.setProxy(settings.proxy)
+          router.setEnabled(true)
           applyProxyEnv(settings)
           await persist()
           await reply(sessionID, `[tor] ENABLED — provider traffic via ${settings.httpProxy}, fetch via ${settings.proxy}`)
@@ -296,6 +301,7 @@ export default Plugin.define({
         }
         case "off": {
           settings = { ...settings, enabled: false }
+          router.setEnabled(false)
           applyProxyEnv(settings)
           await persist()
           await reply(sessionID, "[tor] DISABLED — routing directly")
@@ -330,6 +336,14 @@ export default Plugin.define({
           return
         }
         case "verify": {
+          if (!settings.enabled) {
+            await reply(
+              sessionID,
+              "[tor] routing is OFF — verify not applicable\n" +
+                "[tor] run /tor on to route fetch through Tor, then run /tor verify",
+            )
+            return
+          }
           const [direct, proxied] = await Promise.all([probeDirectIp(), probeIp(router.fetch)])
           const ok = direct !== proxied && !proxied.startsWith("(error")
           await reply(
